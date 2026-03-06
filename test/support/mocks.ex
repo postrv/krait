@@ -1,0 +1,7 @@
+Mox.defmock(Krait.LLM.Mock, for: Krait.LLM.Behaviour)
+Mox.defmock(Krait.LLM.CloudMock, for: Krait.LLM.Behaviour)
+Mox.defmock(Krait.LLM.LocalMock, for: Krait.LLM.Behaviour)
+Mox.defmock(Krait.GitHub.ClientMock, for: Krait.GitHub.ClientBehaviour)
+Mox.defmock(Krait.Analyzer.QuickMock, for: Krait.Analyzer.QuickBehaviour)
+Mox.defmock(Krait.Analyzer.DeepMock, for: Krait.Analyzer.DeepBehaviour)
+Mox.defmock(Krait.Gateway.ChannelMock, for: Krait.Gateway.Channel)

@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: krait_prod
+      POSTGRES_USER: krait
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    secrets:
+      - pg_password
+    volumes:
+      - krait-pgdata-prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U krait"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+    networks:
+      - default
+
+  dind:
+    image: docker:27.4-dind
+    # privileged required for DinD — compensated by userns-remap, seccomp, internal network
+    privileged: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+    command:
+      - dockerd
+      - --host=tcp://0.0.0.0:2376
+      - --tlsverify
+      - --tlscacert=/certs/ca/cert.pem
+      - --tlscert=/certs/server/cert.pem
+      - --tlskey=/certs/server/key.pem
+      - --userns-remap=default
+      - --seccomp-profile=/usr/share/docker/seccomp/default.json
+    volumes:
+      - docker-certs-ca:/certs/ca
+      - docker-certs-client:/certs/client
+    networks:
+      - dind-internal
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  krait:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dind:
+        condition: service_healthy
+    env_file:
+      - .env.prod
+    environment:
+      PHX_SERVER: "true"
+      DOCKER_HOST: tcp://dind:2376
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_CERT_PATH: /certs/client
+      ERL_CRASH_DUMP: /dev/null
+    volumes:
+      - docker-certs-client:/certs/client:ro
+    ports:
+      - "${KRAIT_PORT:-4000}:4000"
+    networks:
+      - default
+      - dind-internal
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+secrets:
+  pg_password:
+    file: ./.secrets/pg_password
+
+networks:
+  dind-internal:
+    internal: true
+
+volumes:
+  krait-pgdata-prod:
+  docker-certs-ca:
+  docker-certs-client:

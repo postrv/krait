@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: krait_dev
+      POSTGRES_USER: krait
+      POSTGRES_PASSWORD: krait
+    ports:
+      # v20 H-6: Bind to localhost only — prevent external access
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U krait"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dind:
+    image: docker:27.4-dind
+    # privileged is required for DinD — Docker needs to create cgroups/namespaces.
+    # v23 H-5: Compensating controls: userns-remap=default, internal network,
+    # resource limits, TLS-only. Full rootless/Sysbox migration tracked separately.
+    privileged: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+    command:
+      - dockerd
+      - --host=tcp://0.0.0.0:2376
+      - --tlsverify
+      - --tlscacert=/certs/ca/cert.pem
+      - --tlscert=/certs/server/cert.pem
+      - --tlskey=/certs/server/key.pem
+      - --userns-remap=default
+      # v25 M-8: Apply default seccomp to sandbox containers spawned by DinD
+      - --seccomp-profile=/usr/share/docker/seccomp/default.json
+    volumes:
+      - docker-certs-ca:/certs/ca
+      - docker-certs-client:/certs/client
+    networks:
+      - dind-internal
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  krait:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dind:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://krait:krait@postgres/krait_dev
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      NARSIL_BINARY: /usr/local/bin/narsil-mcp
+      PHX_SERVER: true
+      DOCKER_HOST: tcp://dind:2376
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_CERT_PATH: /certs/client
+      ERL_CRASH_DUMP: /dev/null
+    ports:
+      # v22 SEC-02: Bind to localhost only — prevent external access (matches postgres on line 10)
+      - "127.0.0.1:4000:4000"
+    volumes:
+      # Mount specific directories — excludes .env, .git/, erl_crash.dump, .idea/
+      - ../lib:/app/lib
+      - ../config:/app/config
+      - ../native:/app/native
+      - ../priv:/app/priv
+      - ../test:/app/test
+      - ../mix.exs:/app/mix.exs
+      - ../mix.lock:/app/mix.lock
+      - ../_build:/app/_build
+      - ../deps:/app/deps
+      - docker-certs-client:/certs/client:ro
+    networks:
+      - default
+      - dind-internal
+
+networks:
+  # DinD sandbox network — internal: true prevents internet access from sandbox containers
+  # Only the krait service can reach the DinD daemon. Sandbox containers spawned via DinD
+  # cannot reach the host network or internet.
+  dind-internal:
+    internal: true
+
+volumes:
+  pgdata:
+  docker-certs-ca:
+  docker-certs-client:

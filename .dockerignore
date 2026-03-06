@@ -1,0 +1,18 @@
+# v23 M-7: Exclude sensitive and unnecessary files from Docker build context
+.env
+.env.*
+.git/
+.gitignore
+.idea/
+.vscode/
+_build/
+deps/
+node_modules/
+erl_crash.dump
+*.beam
+*.ez
+.krait-immutable
+native/krait_analyzer/target/
+test/
+docs/
+.github/

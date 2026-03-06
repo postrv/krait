@@ -1,0 +1,47 @@
+# KRAIT Quickstart — `docker compose -f docker-compose.quickstart.yml up`
+# WARNING: For development/demo only. Hardcoded credentials. Do NOT use in production.
+# Only requires OPENROUTER_API_KEY. All other secrets auto-generated.
+# No DinD sandbox (simplified setup). Uses DryRunClient for GitHub.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: krait_quickstart
+      POSTGRES_USER: krait
+      POSTGRES_PASSWORD: krait_quickstart_dev
+    volumes:
+      - krait-pgdata-quickstart:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U krait"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - default
+
+  krait:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/app/docker/quickstart-entrypoint.sh"]
+    environment:
+      DATABASE_URL: ecto://krait:krait_quickstart_dev@postgres/krait_quickstart
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in your environment}
+      PHX_SERVER: "true"
+      PHX_HOST: localhost
+      KRAIT_DRY_RUN: "true"
+      FILESYSTEM_SANDBOX_ROOT: /app/sandbox
+      # Disable DinD-dependent features for quickstart
+      ALLOW_LOCAL_EXECUTION: "false"
+      ERL_CRASH_DUMP: /dev/null
+    ports:
+      - "4000:4000"
+    networks:
+      - default
+
+volumes:
+  krait-pgdata-quickstart:

@@ -1,0 +1,72 @@
+# Production multi-stage release build
+# Pin base images with digest for supply chain integrity
+# To update: docker manifest inspect elixir:1.17-otp-27 | jq -r '.manifests[0].digest'
+ARG ELIXIR_BASE_DIGEST
+ARG DEBIAN_BASE_DIGEST
+
+# ---- Builder Stage ----
+FROM elixir:1.17-otp-27@${ELIXIR_BASE_DIGEST} AS builder
+
+ENV MIX_ENV=prod
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git curl build-essential ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Rust — pinned toolchain, verified rustup-init binary
+ARG RUSTUP_VERSION="1.27.1"
+ARG RUSTUP_SHA256="6aeece6993e36571f136d5d3530d23ea4443e35e27dde9505d3a8e9d9f3a50b5"
+RUN curl --proto '=https' --tlsv1.2 -sSfO "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init" && \
+    echo "${RUSTUP_SHA256}  rustup-init" | sha256sum -c - && \
+    chmod +x rustup-init && \
+    ./rustup-init -y --default-toolchain 1.82.0 && \
+    rm rustup-init
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install hex and rebar
+RUN mix local.hex --force && mix local.rebar --force
+
+# Copy dependency files first for layer caching
+COPY mix.exs mix.lock ./
+RUN mix deps.get --only prod && mix deps.compile
+
+# Copy native code (Rust NIF)
+COPY native/ native/
+
+# Copy application code
+COPY lib/ lib/
+COPY config/ config/
+COPY priv/ priv/
+
+# Build assets if present
+COPY assets/ assets/ 2>/dev/null || true
+RUN if [ -d "assets" ]; then mix assets.deploy; fi
+
+# Build release
+RUN mix release
+
+# ---- Runner Stage ----
+FROM debian:bookworm-slim@${DEBIAN_BASE_DIGEST} AS runner
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 locales ca-certificates && \
+    locale-gen en_US.UTF-8 && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --create-home --shell /bin/false krait
+
+ENV LANG=en_US.UTF-8
+ENV ERL_CRASH_DUMP=/dev/null
+
+USER krait
+WORKDIR /home/krait
+
+COPY --from=builder --chown=krait:krait /app/_build/prod/rel/krait ./
+
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD bin/krait eval "Krait.Release.health_check()" || exit 1
+
+CMD ["bin/krait", "start"]

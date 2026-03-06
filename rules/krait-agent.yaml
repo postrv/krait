@@ -1,0 +1,60 @@
+# rules/krait-agent.yaml
+# Rules specific to self-modifying agent safety
+# Updated: Allowlist model replaces KRAIT-001 through KRAIT-005
+
+- id: KRAIT-ALW
+  name: module-allowlist
+  description: "Agent-generated code may only use explicitly allowlisted modules and functions"
+  severity: critical
+  languages: [elixir]
+  enforcement: "AST-level allowlist check (Elixir Macro.prewalk + Rust tree-sitter)"
+  tiers:
+    - tier: 1
+      name: "Pure computation"
+      modules: [Enum, Map, List, Keyword, String, Regex, Base, URI, Integer, Float, Date, DateTime, NaiveDateTime, Time, Calendar, Jason, Inspect, Range, Access, Tuple, MapSet, Stream, Bitwise, Collectable, Enumerable]
+    - tier: 2
+      name: "Restricted Kernel"
+      note: "Kernel allowed except: spawn, spawn_link, send, self, apply, exit, node, make_ref"
+    - tier: 3
+      name: "Safe Erlang"
+      modules: [":math", ":lists", ":maps", ":binary", ":string", ":unicode", ":calendar", ":base64", ":rand"]
+    - tier: 5
+      name: "Krait framework interfaces"
+      modules: [Krait.Skills.Skill, Krait.Skills.CapableSkill, "Krait.Skills.Core.*", "Krait.Skills.Capabilities.*"]
+
+- id: KRAIT-003
+  name: no-credential-paths
+  description: "Agent-generated code must not access credential storage (defense-in-depth)"
+  severity: critical
+  languages: [elixir, python, javascript, typescript, rust, bash]
+  taint_sinks:
+    - pattern: "File.read"
+      argument_matches:
+        - "~/.ssh"
+        - "~/.aws"
+        - "~/.config/gcloud"
+        - "~/.gnupg"
+        - ".env"
+        - "credentials"
+        - "secrets"
+
+- id: KRAIT-006
+  name: no-immutable-path-targeting
+  description: "Agent-generated code must not reference immutable core paths"
+  severity: critical
+  languages: [elixir, rust]
+  patterns:
+    - "native/krait_analyzer"
+    - "native/analyzer"
+    - ".krait-immutable"
+    - "krait-rules.yaml"
+
+- id: KRAIT-007
+  name: no-recursive-self-modification
+  description: "Agent code must not modify the evolution system itself"
+  severity: critical
+  languages: [elixir]
+  patterns:
+    - "Krait.Evolution"
+    - "Krait.Analyzer"
+    - "Krait.Sandbox"

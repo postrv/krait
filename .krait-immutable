@@ -1,0 +1,27 @@
+# Paths the agent is structurally prohibited from targeting.
+# Updates to this file require "Constitutional Convention" — human only.
+native/
+rules/
+.krait-immutable
+AGENTS.md
+lib/krait/analyzer/
+lib/krait/evolution/validator.ex
+lib/krait/evolution/deployer.ex
+lib/krait/sandbox/
+config/
+mix.exs
+mix.lock
+lib/krait/skills/capable_skill.ex
+lib/krait/skills/capability_injector.ex
+lib/krait/skills/capabilities/
+lib/krait/analyzer/allowlist.ex
+lib/krait/brain/
+lib/krait/gateway/
+lib/krait/llm/
+lib/krait/skills/core/
+lib/krait/github/
+lib/krait/application.ex
+lib/krait/evolution/evolution.ex
+lib/krait/evolution/naming.ex
+lib/krait/security/
+lib/krait_web/

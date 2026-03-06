@@ -1,0 +1,54 @@
+# Pin base image with digest for supply chain integrity
+# To update: docker manifest inspect elixir:1.17-otp-27-slim | jq -r '.manifests[0].digest'
+# REQUIRED: pass --build-arg ELIXIR_BASE_DIGEST=sha256:<actual_digest> at build time
+ARG ELIXIR_BASE_DIGEST
+FROM elixir:1.17-otp-27-slim@${ELIXIR_BASE_DIGEST}
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git curl build-essential ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Rust (for NIF compilation) — pinned toolchain for reproducibility
+# Download rustup-init binary and verify checksum instead of piping curl to shell
+ARG RUSTUP_VERSION="1.27.1"
+ARG RUSTUP_SHA256="6aeece6993e36571f136d5d3530d23ea4443e35e27dde9505d3a8e9d9f3a50b5"
+RUN curl --proto '=https' --tlsv1.2 -sSfO "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init" && \
+    echo "${RUSTUP_SHA256}  rustup-init" | sha256sum -c - && \
+    chmod +x rustup-init && \
+    ./rustup-init -y --default-toolchain 1.82.0 && \
+    rm rustup-init
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install narsil-mcp (optional — graceful degradation if unavailable)
+# Download versioned release binary with checksum verification
+ARG NARSIL_VERSION="1.5.0"
+ARG NARSIL_SHA256=""
+RUN if [ -n "${NARSIL_SHA256}" ]; then \
+      curl -fsSL -o /usr/local/bin/narsil-mcp \
+        "https://github.com/postrv/narsil-mcp/releases/download/v${NARSIL_VERSION}/narsil-mcp-x86_64-unknown-linux-gnu" && \
+      echo "${NARSIL_SHA256}  /usr/local/bin/narsil-mcp" | sha256sum -c - && \
+      chmod +x /usr/local/bin/narsil-mcp; \
+    else \
+      echo "NARSIL_SHA256 not set — skipping narsil-mcp install (deep scan will be unavailable)"; \
+    fi
+
+ENV ERL_CRASH_DUMP=/dev/null
+
+# v21 M-11: Run as non-root user for defense-in-depth
+RUN useradd -r -s /bin/false -m sandbox
+USER sandbox
+
+WORKDIR /workspace
+
+# No host mounts at runtime
+# GitHub token injected via FLAME env
+# MIX_ENV=test always
+ENV MIX_ENV=test
+
+# Install hex and rebar
+RUN mix local.hex --force && mix local.rebar --force
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD mix --version || exit 1

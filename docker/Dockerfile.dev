@@ -1,0 +1,54 @@
+# Pin base image with digest for supply chain integrity (matches Dockerfile.sandbox)
+# To update: docker manifest inspect elixir:1.17-otp-27 | jq -r '.manifests[0].digest'
+# REQUIRED: pass --build-arg ELIXIR_BASE_DIGEST=sha256:<actual_digest> at build time
+ARG ELIXIR_BASE_DIGEST
+FROM elixir:1.17-otp-27@${ELIXIR_BASE_DIGEST}
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git curl build-essential ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Rust — pinned toolchain, verified rustup-init binary (matches Dockerfile.sandbox)
+ARG RUSTUP_VERSION="1.27.1"
+ARG RUSTUP_SHA256="6aeece6993e36571f136d5d3530d23ea4443e35e27dde9505d3a8e9d9f3a50b5"
+RUN curl --proto '=https' --tlsv1.2 -sSfO "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init" && \
+    echo "${RUSTUP_SHA256}  rustup-init" | sha256sum -c - && \
+    chmod +x rustup-init && \
+    ./rustup-init -y --default-toolchain 1.82.0 && \
+    rm rustup-init
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+ENV ERL_CRASH_DUMP=/dev/null
+
+# Create non-root user
+RUN groupadd -r krait && useradd -r -g krait -m -s /bin/bash krait
+
+WORKDIR /app
+
+# Install hex and rebar as root
+RUN mix local.hex --force && mix local.rebar --force
+
+# v20 L-6: Copy Rust toolchain to krait user before switching
+RUN cp -r /root/.cargo /home/krait/.cargo && \
+    cp -r /root/.rustup /home/krait/.rustup && \
+    chown -R krait:krait /home/krait/.cargo /home/krait/.rustup && \
+    chown -R krait:krait /app
+
+# v20 L-6: Switch to non-root user BEFORE deps.get/compile
+USER krait
+ENV PATH="/home/krait/.cargo/bin:${PATH}"
+
+# Install hex and rebar for krait user
+RUN mix local.hex --force && mix local.rebar --force
+
+# Copy mix files first for caching
+COPY --chown=krait:krait mix.exs mix.lock ./
+RUN mix deps.get
+
+COPY --chown=krait:krait . .
+RUN mix compile
+
+EXPOSE 4000
+
+CMD ["mix", "phx.server"]
