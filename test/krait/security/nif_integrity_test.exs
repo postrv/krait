@@ -28,6 +28,41 @@ defmodule Krait.Security.NifIntegrityTest do
     end
   end
 
+  describe "nif_binary_path/1" do
+    test "finds the Rustler runtime NIF name copied under priv/native" do
+      dir =
+        Path.join(System.tmp_dir!(), "nif_integrity_path_#{System.unique_integer([:positive])}")
+
+      native_dir = Path.join(dir, "native")
+      File.mkdir_p!(native_dir)
+
+      path = Path.join(native_dir, "krait_analyzer.so")
+      File.write!(path, "runtime nif")
+
+      assert NifIntegrity.nif_binary_path(dir) == path
+
+      File.rm_rf!(dir)
+    end
+
+    test "still accepts platform-specific library names" do
+      dir =
+        Path.join(
+          System.tmp_dir!(),
+          "nif_integrity_platform_#{System.unique_integer([:positive])}"
+        )
+
+      native_dir = Path.join(dir, "native")
+      File.mkdir_p!(native_dir)
+
+      path = Path.join(native_dir, "libkrait_analyzer.dylib")
+      File.write!(path, "platform nif")
+
+      assert NifIntegrity.nif_binary_path(dir) == path
+
+      File.rm_rf!(dir)
+    end
+  end
+
   describe "hash verification" do
     test "passes with matching sidecar hash" do
       dir = Path.join(System.tmp_dir!(), "nif_integrity_#{:rand.uniform(100_000)}")
