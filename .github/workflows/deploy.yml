@@ -41,6 +41,23 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
+      - name: Validate release build inputs
+        env:
+          ELIXIR_BASE_DIGEST: ${{ vars.ELIXIR_BASE_DIGEST }}
+          DEBIAN_BASE_DIGEST: ${{ vars.DEBIAN_BASE_DIGEST }}
+          NARSIL_VERSION: ${{ vars.NARSIL_VERSION }}
+          NARSIL_SHA256: ${{ vars.NARSIL_SHA256 }}
+          NARSIL_EXPECTED_VERSION: "1.7.0"
+        run: |
+          : "${ELIXIR_BASE_DIGEST:?ELIXIR_BASE_DIGEST repository variable is required}"
+          : "${DEBIAN_BASE_DIGEST:?DEBIAN_BASE_DIGEST repository variable is required}"
+          : "${NARSIL_VERSION:?NARSIL_VERSION repository variable is required}"
+          : "${NARSIL_SHA256:?NARSIL_SHA256 repository variable is required}"
+          test "${NARSIL_VERSION}" = "${NARSIL_EXPECTED_VERSION}" || {
+            echo "NARSIL_VERSION must be ${NARSIL_EXPECTED_VERSION}, got ${NARSIL_VERSION}" >&2
+            exit 1
+          }
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -54,6 +71,8 @@ jobs:
           build-args: |
             ELIXIR_BASE_DIGEST=${{ vars.ELIXIR_BASE_DIGEST }}
             DEBIAN_BASE_DIGEST=${{ vars.DEBIAN_BASE_DIGEST }}
+            NARSIL_VERSION=${{ vars.NARSIL_VERSION }}
+            NARSIL_SHA256=${{ vars.NARSIL_SHA256 }}
 
       - name: Smoke test image
         run: |

@@ -61,6 +61,11 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.prod
+      args:
+        ELIXIR_BASE_DIGEST: ${ELIXIR_BASE_DIGEST:?ELIXIR_BASE_DIGEST is required}
+        DEBIAN_BASE_DIGEST: ${DEBIAN_BASE_DIGEST:?DEBIAN_BASE_DIGEST is required}
+        NARSIL_VERSION: ${NARSIL_VERSION:?NARSIL_VERSION is required}
+        NARSIL_SHA256: ${NARSIL_SHA256:?NARSIL_SHA256 is required}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -75,6 +80,7 @@ services:
       DOCKER_TLS_VERIFY: "1"
       DOCKER_CERT_PATH: /certs/client
       ERL_CRASH_DUMP: /dev/null
+      NARSIL_BINARY: /usr/local/bin/narsil-mcp
     volumes:
       - docker-certs-client:/certs/client:ro
     ports:

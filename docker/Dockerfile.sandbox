@@ -22,7 +22,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install narsil-mcp (optional — graceful degradation if unavailable)
 # Download versioned release binary with checksum verification
-ARG NARSIL_VERSION="1.5.0"
+ARG NARSIL_VERSION="1.7.0"
 ARG NARSIL_SHA256=""
 RUN if [ -n "${NARSIL_SHA256}" ]; then \
       curl -fsSL -o /usr/local/bin/narsil-mcp \

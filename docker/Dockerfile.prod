@@ -3,9 +3,16 @@
 # To update: docker manifest inspect elixir:1.17-otp-27 | jq -r '.manifests[0].digest'
 ARG ELIXIR_BASE_DIGEST
 ARG DEBIAN_BASE_DIGEST
+ARG NARSIL_VERSION
+ARG NARSIL_SHA256
+ARG NARSIL_EXPECTED_VERSION="1.7.0"
 
 # ---- Builder Stage ----
 FROM elixir:1.17-otp-27@${ELIXIR_BASE_DIGEST} AS builder
+
+ARG NARSIL_VERSION
+ARG NARSIL_SHA256
+ARG NARSIL_EXPECTED_VERSION
 
 ENV MIX_ENV=prod
 WORKDIR /app
@@ -24,6 +31,20 @@ RUN curl --proto '=https' --tlsv1.2 -sSfO "https://static.rust-lang.org/rustup/a
     ./rustup-init -y --default-toolchain 1.82.0 && \
     rm rustup-init
 ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install narsil-mcp for required production deep scanning.
+# The checksum is intentionally mandatory: production builds must fail closed
+# if the release binary is not pinned and verified.
+RUN test -n "${NARSIL_VERSION}" && \
+    test -n "${NARSIL_SHA256}" && \
+    if [ "${NARSIL_VERSION}" != "${NARSIL_EXPECTED_VERSION}" ]; then \
+      echo "NARSIL_VERSION must be ${NARSIL_EXPECTED_VERSION}, got ${NARSIL_VERSION}" >&2; \
+      exit 1; \
+    fi && \
+    curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/narsil-mcp \
+      "https://github.com/postrv/narsil-mcp/releases/download/v${NARSIL_VERSION}/narsil-mcp-x86_64-unknown-linux-gnu" && \
+    echo "${NARSIL_SHA256}  /tmp/narsil-mcp" | sha256sum -c - && \
+    chmod +x /tmp/narsil-mcp
 
 # Install hex and rebar
 RUN mix local.hex --force && mix local.rebar --force
@@ -58,10 +79,12 @@ RUN apt-get update && \
 
 ENV LANG=en_US.UTF-8
 ENV ERL_CRASH_DUMP=/dev/null
+ENV NARSIL_BINARY=/usr/local/bin/narsil-mcp
 
 USER krait
 WORKDIR /home/krait
 
+COPY --from=builder /tmp/narsil-mcp /usr/local/bin/narsil-mcp
 COPY --from=builder --chown=krait:krait /app/_build/prod/rel/krait ./
 
 EXPOSE 4000

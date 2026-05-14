@@ -96,7 +96,7 @@ defmodule KraitWeb.HealthControllerTest do
     end
 
     # v27 L-6: Evolution health now requires API token auth
-    test "evolution endpoint requires authentication", %{conn: conn} do
+    test "evolution endpoint requires authentication" do
       Application.put_env(:krait, :api_auth_token, "real-secret")
 
       # Without auth — should get 401

@@ -1,9 +1,11 @@
 defmodule Krait.Skills.Core.FilesystemTest do
   use ExUnit.Case, async: true
 
+  alias Krait.Skills.Core.Filesystem
+
   test "rejects path traversal attacks" do
     assert {:error, _} =
-             Krait.Skills.Core.Filesystem.execute(%{
+             Filesystem.execute(%{
                "action" => "read",
                "path" => "../../../etc/passwd"
              })
@@ -11,19 +13,19 @@ defmodule Krait.Skills.Core.FilesystemTest do
 
   test "rejects paths outside sandbox" do
     assert {:error, _} =
-             Krait.Skills.Core.Filesystem.execute(%{"action" => "read", "path" => "/etc/passwd"})
+             Filesystem.execute(%{"action" => "read", "path" => "/etc/passwd"})
   end
 
   test "reads a file within the project" do
     assert {:ok, %{content: content}} =
-             Krait.Skills.Core.Filesystem.execute(%{"action" => "read", "path" => "mix.exs"})
+             Filesystem.execute(%{"action" => "read", "path" => "mix.exs"})
 
     assert content =~ "Krait.MixProject"
   end
 
   test "lists directory entries" do
     assert {:ok, %{entries: entries}} =
-             Krait.Skills.Core.Filesystem.execute(%{"action" => "list", "path" => "lib"})
+             Filesystem.execute(%{"action" => "list", "path" => "lib"})
 
     assert "krait" in entries or "krait_web" in entries or "krait_web.ex" in entries
   end
@@ -31,14 +33,14 @@ defmodule Krait.Skills.Core.FilesystemTest do
   describe "sensitive file blocking (M-14)" do
     test "rejects .env file" do
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{"action" => "read", "path" => ".env"})
+               Filesystem.execute(%{"action" => "read", "path" => ".env"})
 
       assert msg =~ "outside sandbox or restricted"
     end
 
     test "rejects .env.production in subdirectory" do
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "config/.env.production"
                })
@@ -48,7 +50,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
 
     test "rejects .pem certificate files" do
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "certs/server.pem"
                })
@@ -58,7 +60,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
 
     test "rejects .key private key files" do
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "certs/server.key"
                })
@@ -68,7 +70,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
 
     test "rejects credentials.json" do
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "credentials.json"
                })
@@ -78,7 +80,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
 
     test "rejects id_rsa" do
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "keys/id_rsa"
                })
@@ -88,14 +90,14 @@ defmodule Krait.Skills.Core.FilesystemTest do
 
     test "list action still works on directories" do
       assert {:ok, %{entries: entries}} =
-               Krait.Skills.Core.Filesystem.execute(%{"action" => "list", "path" => "lib"})
+               Filesystem.execute(%{"action" => "list", "path" => "lib"})
 
       assert is_list(entries)
     end
 
     test "legitimate .ex files still readable" do
       assert {:ok, %{content: content}} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "lib/krait/application.ex"
                })
@@ -107,7 +109,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
   describe "proc/sys/dev blocking" do
     test "rejects /proc/self/environ" do
       assert {:error, _} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "/proc/self/environ"
                })
@@ -115,7 +117,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
 
     test "rejects /sys/kernel/hostname" do
       assert {:error, _} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "/sys/kernel/hostname"
                })
@@ -123,7 +125,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
 
     test "rejects /dev/random" do
       assert {:error, _} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "/dev/random"
                })
@@ -149,7 +151,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
       Application.put_env(:krait, :filesystem_sandbox_root, "/nonexistent")
 
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "mix.exs"
                })
@@ -168,7 +170,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
       on_exit(fn -> File.rm(symlink_path) end)
 
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "test_escape_symlink"
                })
@@ -185,7 +187,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
       on_exit(fn -> File.rm(symlink_path) end)
 
       assert {:ok, %{content: content}} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "test_safe_symlink"
                })
@@ -209,7 +211,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
       end)
 
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "test_hop1_symlink"
                })
@@ -237,7 +239,7 @@ defmodule Krait.Skills.Core.FilesystemTest do
       end)
 
       assert {:error, msg} =
-               Krait.Skills.Core.Filesystem.execute(%{
+               Filesystem.execute(%{
                  "action" => "read",
                  "path" => "test_chain_hop1_symlink"
                })

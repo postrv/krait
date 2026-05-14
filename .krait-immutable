@@ -7,10 +7,15 @@ AGENTS.md
 lib/krait/analyzer/
 lib/krait/evolution/validator.ex
 lib/krait/evolution/deployer.ex
+lib/krait/evolution/promotion_decision.ex
+lib/krait/evolution/review_evidence.ex
 lib/krait/sandbox/
 config/
 mix.exs
 mix.lock
+lib/krait/setup_validation.ex
+lib/mix/tasks/
+docs/adr/
 lib/krait/skills/capable_skill.ex
 lib/krait/skills/capability_injector.ex
 lib/krait/skills/capabilities/

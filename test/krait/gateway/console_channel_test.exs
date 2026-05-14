@@ -1,6 +1,8 @@
 defmodule Krait.Gateway.ConsoleChannelTest do
   use ExUnit.Case, async: false
 
+  alias Krait.Gateway.Channels.Console
+
   import Mox
 
   setup :set_mox_from_context
@@ -13,12 +15,10 @@ defmodule Krait.Gateway.ConsoleChannelTest do
     end)
 
     {:ok, channel} =
-      Krait.Gateway.Channels.Console.start_link(
-        brain_opts: [llm: Krait.LLM.Mock, session_id: "console-test-1"]
-      )
+      Console.start_link(brain_opts: [llm: Krait.LLM.Mock, session_id: "console-test-1"])
 
     assert {:ok, "I'm Krait!"} =
-             Krait.Gateway.Channels.Console.send_user_message(channel, "Who are you?")
+             Console.send_user_message(channel, "Who are you?")
   end
 
   test "handles multiple sequential messages" do
@@ -35,15 +35,13 @@ defmodule Krait.Gateway.ConsoleChannelTest do
     end)
 
     {:ok, channel} =
-      Krait.Gateway.Channels.Console.start_link(
-        brain_opts: [llm: Krait.LLM.Mock, session_id: "console-test-2"]
-      )
+      Console.start_link(brain_opts: [llm: Krait.LLM.Mock, session_id: "console-test-2"])
 
     assert {:ok, "Got first!"} =
-             Krait.Gateway.Channels.Console.send_user_message(channel, "first")
+             Console.send_user_message(channel, "first")
 
     assert {:ok, "Got second!"} =
-             Krait.Gateway.Channels.Console.send_user_message(channel, "second")
+             Console.send_user_message(channel, "second")
   end
 
   test "returns error when brain errors" do
@@ -53,10 +51,8 @@ defmodule Krait.Gateway.ConsoleChannelTest do
     end)
 
     {:ok, channel} =
-      Krait.Gateway.Channels.Console.start_link(
-        brain_opts: [llm: Krait.LLM.Mock, session_id: "console-test-3"]
-      )
+      Console.start_link(brain_opts: [llm: Krait.LLM.Mock, session_id: "console-test-3"])
 
-    assert {:error, :api_down} = Krait.Gateway.Channels.Console.send_user_message(channel, "Hi")
+    assert {:error, :api_down} = Console.send_user_message(channel, "Hi")
   end
 end

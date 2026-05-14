@@ -2,6 +2,7 @@ defmodule Krait.Analyzer.V17SecurityTest do
   use ExUnit.Case, async: true
 
   alias Krait.Analyzer.Quick
+  alias Krait.Skills.Capabilities.FilesystemCap
 
   # ===========================================================================
   # C-1: Qualified Kernel.func() bypass
@@ -364,17 +365,17 @@ defmodule Krait.Analyzer.V17SecurityTest do
   describe "M-6: FilesystemCap rejects ~/ paths" do
     test "read with ~/ prefix rejected" do
       assert {:error, :forbidden_path} =
-               Krait.Skills.Capabilities.FilesystemCap.read("~/secrets.txt")
+               FilesystemCap.read("~/secrets.txt")
     end
 
     test "list with ~/ prefix rejected" do
       assert {:error, :forbidden_path} =
-               Krait.Skills.Capabilities.FilesystemCap.list("~/.ssh")
+               FilesystemCap.list("~/.ssh")
     end
 
     test "read with normal path passes through" do
       # This will fail with a filesystem error, but NOT :forbidden_path
-      result = Krait.Skills.Capabilities.FilesystemCap.read("/nonexistent/path")
+      result = FilesystemCap.read("/nonexistent/path")
       assert result != {:error, :forbidden_path}
     end
   end
