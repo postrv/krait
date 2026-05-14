@@ -19,7 +19,7 @@ defmodule KraitWeb.EvolutionController do
             Logger.info("Evolution task starting for #{skill_name}")
 
             result =
-              Krait.Evolution.evolve(%{
+              evolution_runner().evolve(%{
                 skill_name: skill_name,
                 description: clean_desc,
                 trigger: clean_desc,
@@ -118,6 +118,10 @@ defmodule KraitWeb.EvolutionController do
 
   defp check_kill_switch do
     if Krait.KillSwitch.halted?(), do: {:error, :system_halted}, else: :ok
+  end
+
+  defp evolution_runner do
+    Application.get_env(:krait, :evolution_runner, Krait.Evolution)
   end
 
   # v24 F-05: Atomic slot acquisition — serialized by GenServer, no race condition

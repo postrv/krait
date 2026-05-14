@@ -16,6 +16,9 @@ defmodule KraitWeb.EvolutionControllerTest do
     # Phase 0: Ensure kill switch is not halted
     GenServer.call(Krait.KillSwitch, :reset_for_test)
 
+    Application.put_env(:krait, :evolution_runner_test_pid, self())
+    on_exit(fn -> Application.delete_env(:krait, :evolution_runner_test_pid) end)
+
     :ok
   end
 
@@ -29,6 +32,8 @@ defmodule KraitWeb.EvolutionControllerTest do
 
       assert %{"status" => "evolution_started", "skill_name" => "test_skill"} =
                json_response(conn, 200)
+
+      assert_evolution_task_completed("test_skill")
     end
 
     test "rejects path traversal in skill_name", %{conn: conn} do
@@ -106,6 +111,10 @@ defmodule KraitWeb.EvolutionControllerTest do
         })
 
       assert %{"status" => "evolution_started"} = json_response(conn, 200)
+
+      params = assert_evolution_task_completed("test_skill")
+      refute params.description =~ <<1>>
+      refute params.description =~ <<2>>
     end
 
     test "v25 H-3: sanitizes prompt injection patterns in description", %{conn: conn} do
@@ -117,6 +126,9 @@ defmodule KraitWeb.EvolutionControllerTest do
 
       # Request succeeds, but the description should be sanitized before reaching LLM
       assert %{"status" => "evolution_started"} = json_response(conn, 200)
+
+      params = assert_evolution_task_completed("test_sanitized")
+      refute params.description =~ "ignore previous instructions"
     end
 
     test "v25 H-3: source uses PromptSanitizer" do
@@ -132,6 +144,8 @@ defmodule KraitWeb.EvolutionControllerTest do
         })
 
       assert %{"status" => "evolution_started"} = json_response(conn, 200)
+
+      assert_evolution_task_completed("test_skill")
     end
   end
 
@@ -167,6 +181,8 @@ defmodule KraitWeb.EvolutionControllerTest do
         })
 
       assert %{"status" => "evolution_started"} = json_response(conn, 200)
+
+      assert_evolution_task_completed("test_throttle")
     end
 
     test "returns 429 when max concurrent evolutions reached", %{conn: conn} do
@@ -193,8 +209,7 @@ defmodule KraitWeb.EvolutionControllerTest do
           "description" => "A test skill"
         })
 
-      # Give the task time to start and complete
-      Process.sleep(100)
+      assert_evolution_task_completed("test_counter_dec")
 
       # v22 SEC-08: Read via GenServer API
       [{:active_evolutions, count}] =
@@ -232,5 +247,16 @@ defmodule KraitWeb.EvolutionControllerTest do
       nil -> Krait.EvolveCooldownServer.start_link([])
       pid -> if Process.alive?(pid), do: :ok, else: Krait.EvolveCooldownServer.start_link([])
     end
+  end
+
+  defp assert_evolution_task_completed(expected_skill_name) do
+    assert_receive {:evolution_runner_called, task_pid, params}, 1_000
+    assert params.skill_name == expected_skill_name
+
+    ref = Process.monitor(task_pid)
+    assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+    assert reason in [:normal, :noproc]
+
+    params
   end
 end
