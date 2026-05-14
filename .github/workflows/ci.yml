@@ -48,13 +48,12 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Elixir deps + _build
+      - name: Cache Elixir deps
         uses: actions/cache@v4
         id: elixir-cache
         with:
           path: |
             deps
-            _build
           key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
             ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
@@ -75,6 +74,19 @@ jobs:
 
       - name: Compile (warnings as errors)
         run: mix compile --warnings-as-errors
+
+      - name: Validate Rust NIF load
+        run: |
+          mix run --no-start -e '
+          case Krait.Analyzer.Nif.quick_validate("defmodule M do end", "elixir") do
+            {:ok, %{complexity: complexity, hash: hash}}
+            when is_integer(complexity) and is_binary(hash) ->
+              :ok
+
+            other ->
+              raise "Rust NIF smoke check failed: #{inspect(other)}"
+          end
+          '
 
       - name: Check formatting
         run: mix format --check-formatted
@@ -170,12 +182,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Elixir deps + _build
+      - name: Cache Elixir deps
         uses: actions/cache@v4
         with:
           path: |
             deps
-            _build
           key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
             ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
@@ -401,12 +412,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Elixir deps + _build
+      - name: Cache Elixir deps
         uses: actions/cache@v4
         with:
           path: |
             deps
-            _build
           key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
             ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
