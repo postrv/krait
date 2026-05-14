@@ -125,7 +125,9 @@ defmodule Krait.LLM.OpenRouter do
   end
 
   defp request_failure_reason(reason) do
-    if is_exception(reason), do: Exception.message(reason), else: inspect(reason)
+    Exception.message(reason)
+  rescue
+    FunctionClauseError -> inspect(reason)
   end
 
   # ---------------------------------------------------------------------------
