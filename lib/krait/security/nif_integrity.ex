@@ -68,15 +68,35 @@ defmodule Krait.Security.NifIntegrity do
     end
   end
 
-  defp nif_binary_path do
-    priv_dir = :code.priv_dir(:krait) |> to_string()
+  @doc false
+  @spec nif_binary_path(String.t() | nil) :: String.t() | nil
+  def nif_binary_path(priv_dir \\ nil)
 
-    # Try common NIF binary names (macOS .dylib, Linux .so)
-    Enum.find_value(["libkrait_analyzer.so", "libkrait_analyzer.dylib"], fn name ->
+  def nif_binary_path(nil) do
+    :krait
+    |> :code.priv_dir()
+    |> to_string()
+    |> nif_binary_path()
+  rescue
+    _ -> nil
+  end
+
+  def nif_binary_path(priv_dir) when is_binary(priv_dir) do
+    # Rustler copies the built dynamic library to priv/native/krait_analyzer.so
+    # on Unix-like systems, regardless of the source platform extension.
+    Enum.find_value(nif_binary_names(), fn name ->
       path = Path.join([priv_dir, "native", name])
       if File.exists?(path), do: path
     end)
-  rescue
-    _ -> nil
+  end
+
+  defp nif_binary_names do
+    [
+      "krait_analyzer.so",
+      "libkrait_analyzer.so",
+      "libkrait_analyzer.dylib",
+      "krait_analyzer.dll",
+      "libkrait_analyzer.dll"
+    ]
   end
 end

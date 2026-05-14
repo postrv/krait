@@ -72,6 +72,7 @@ config :krait, Krait.Repo,
 config :krait, Krait.Analyzer.Deep,
   narsil_binary:
     System.get_env("NARSIL_BINARY") ||
+      System.find_executable("narsil-mcp") ||
       Path.expand("../../narsil-mcp/target/release/narsil-mcp", __DIR__)
 
 # v20 H-2: Removed DeepStub override — real Deep analyzer is conditional in application.ex
