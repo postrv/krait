@@ -5,6 +5,7 @@ defmodule Krait.Skills.Community.DateHelperTest do
 
   describe "behaviour compliance" do
     test "implements CapableSkill callbacks" do
+      assert Code.ensure_loaded?(DateHelper)
       assert function_exported?(DateHelper, :name, 0)
       assert function_exported?(DateHelper, :description, 0)
       assert function_exported?(DateHelper, :required_capabilities, 0)

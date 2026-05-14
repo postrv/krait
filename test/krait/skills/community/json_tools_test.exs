@@ -5,6 +5,7 @@ defmodule Krait.Skills.Community.JsonToolsTest do
 
   describe "behaviour compliance" do
     test "implements CapableSkill callbacks" do
+      assert Code.ensure_loaded?(JsonTools)
       assert function_exported?(JsonTools, :name, 0)
       assert function_exported?(JsonTools, :description, 0)
       assert function_exported?(JsonTools, :required_capabilities, 0)
