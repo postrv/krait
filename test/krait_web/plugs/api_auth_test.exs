@@ -14,9 +14,6 @@ defmodule KraitWeb.Plugs.ApiAuthTest do
     if GenServer.whereis(Krait.KillSwitch) do
       GenServer.call(Krait.KillSwitch, :reset_for_test)
     end
-
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Krait.Repo, shared: true)
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
   end
 
   describe "when token is configured" do

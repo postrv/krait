@@ -16,8 +16,6 @@ defmodule KraitWeb.EvolutionControllerTest do
     # Phase 0: Ensure kill switch is not halted
     GenServer.call(Krait.KillSwitch, :reset_for_test)
 
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Krait.Repo, shared: true)
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
     :ok
   end
 
