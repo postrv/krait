@@ -46,7 +46,8 @@ defmodule Krait.Evolution.ReviewEvidence do
     with {:ok, provider} <- fetch_provider(attrs),
          {:ok, status} <- normalize_status(fetch(attrs, :status, :passed)),
          {:ok, findings} <- normalize_findings(fetch(attrs, :findings, [])),
-         {:ok, explicit_severity} <- normalize_optional_severity(fetch(attrs, :max_severity, nil)),
+         {:ok, explicit_severity} <-
+           normalize_optional_severity(fetch(attrs, :max_severity, nil)),
          {:ok, confidence} <-
            normalize_confidence(fetch(attrs, :confidence, default_confidence(status))) do
       {:ok,

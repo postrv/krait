@@ -259,13 +259,14 @@ Every evolution PR includes an Ed25519-signed attestation capturing:
 
 ### Immutable Core
 
-Files listed in `.krait-immutable` (30 path prefixes) cannot be targeted by agent-generated code. Updates require a **"Constitutional Convention"** — human-only, manual push:
+Files listed in `.krait-immutable` (31 path prefixes) cannot be targeted by agent-generated code. Updates require a **"Constitutional Convention"** — a PR authored by a human maintainer in the `AUTHORIZED_HUMANS` allowlist (see `.github/workflows/ci.yml`) AND carrying the `constitutional-convention` label. The CI Immutable Path Guard enforces both factors and writes an audit log for every bypass:
 
 ```
 native/                              # Rust NIF source
 rules/                               # Narsil rule definitions
 .krait-immutable                     # This manifest
 AGENTS.md                            # Contributor security guidance
+.github/                             # GitHub workflows, CODEOWNERS, Dependabot
 lib/krait/analyzer/                  # Allowlist + analyzers
 lib/krait/analyzer/allowlist.ex      # 5-tier module/function allowlist
 lib/krait/evolution/validator.ex     # Validation pipeline

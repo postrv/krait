@@ -119,12 +119,13 @@ defmodule Krait.LLM.OpenRouter do
         {:error, :openrouter_unavailable}
 
       {:error, reason} ->
-        reason_str =
-          if is_exception(reason), do: Exception.message(reason), else: inspect(reason)
-
-        Logger.error("OpenRouter request failed", reason: reason_str)
+        Logger.error("OpenRouter request failed", reason: request_failure_reason(reason))
         {:error, {:request_failed, reason}}
     end
+  end
+
+  defp request_failure_reason(reason) do
+    if is_exception(reason), do: Exception.message(reason), else: inspect(reason)
   end
 
   # ---------------------------------------------------------------------------
