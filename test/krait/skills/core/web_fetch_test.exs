@@ -1,12 +1,14 @@
 defmodule Krait.Skills.Core.WebFetchTest do
   use ExUnit.Case, async: true
 
+  alias Krait.Skills.Core.WebFetch
+
   test "name returns web_fetch" do
-    assert Krait.Skills.Core.WebFetch.name() == "web_fetch"
+    assert WebFetch.name() == "web_fetch"
   end
 
   test "returns error for missing url" do
-    assert {:error, _} = Krait.Skills.Core.WebFetch.execute(%{})
+    assert {:error, _} = WebFetch.execute(%{})
   end
 
   describe "domain allowlist enforcement" do
@@ -19,21 +21,21 @@ defmodule Krait.Skills.Core.WebFetchTest do
 
       # localhost is always allowed in test (allow_local_network: true)
       assert {:ok, %{status: 200}} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://localhost:#{bypass.port}/ok"
                })
     end
 
     test "rejects requests to non-allowlisted domains" do
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{"url" => "https://evil.example.com/steal"})
+               WebFetch.execute(%{"url" => "https://evil.example.com/steal"})
 
       assert msg =~ "not in domain allowlist"
     end
 
     test "rejects IP address URLs" do
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{"url" => "http://192.168.1.1/api"})
+               WebFetch.execute(%{"url" => "http://192.168.1.1/api"})
 
       assert msg =~ "not in domain allowlist"
     end
@@ -66,7 +68,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["169.254.169.254"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://169.254.169.254/latest/meta-data/"
                })
 
@@ -77,7 +79,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["127.0.0.1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://127.0.0.1/admin"
                })
 
@@ -88,7 +90,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["10.0.0.1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://10.0.0.1/internal"
                })
 
@@ -99,7 +101,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["172.16.0.1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://172.16.0.1/internal"
                })
 
@@ -112,7 +114,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       ])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://definitely-unresolvable-host-krait-test.invalid/secret"
                })
 
@@ -131,7 +133,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       end)
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://localhost:#{bypass.port}/redirect"
                })
 
@@ -148,7 +150,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       end)
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://localhost:#{bypass.port}/moved"
                })
 
@@ -181,7 +183,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["fe80::1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{"url" => "http://[fe80::1]/admin"})
+               WebFetch.execute(%{"url" => "http://[fe80::1]/admin"})
 
       assert msg =~ "SSRF blocked"
     end
@@ -190,7 +192,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["fc00::1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{"url" => "http://[fc00::1]/admin"})
+               WebFetch.execute(%{"url" => "http://[fc00::1]/admin"})
 
       assert msg =~ "SSRF blocked"
     end
@@ -199,7 +201,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["fd00::1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{"url" => "http://[fd00::1]/admin"})
+               WebFetch.execute(%{"url" => "http://[fd00::1]/admin"})
 
       assert msg =~ "SSRF blocked"
     end
@@ -208,7 +210,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["::ffff:10.0.0.1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[::ffff:10.0.0.1]/internal"
                })
 
@@ -219,7 +221,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["::ffff:192.168.1.1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[::ffff:192.168.1.1]/internal"
                })
 
@@ -230,7 +232,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["::ffff:169.254.169.254"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[::ffff:169.254.169.254]/metadata"
                })
 
@@ -243,7 +245,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       ])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/admin"
                })
 
@@ -254,7 +256,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["2002:c0a8:1::1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[2002:c0a8:1::1]/admin"
                })
 
@@ -265,7 +267,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["::192.168.1.1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[::192.168.1.1]/admin"
                })
 
@@ -276,7 +278,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["2001:db8::1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[2001:db8::1]/test"
                })
 
@@ -287,7 +289,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       Application.put_env(:krait, :network_allowlist, ["2001:2::1"])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[2001:2::1]/test"
                })
 
@@ -302,7 +304,7 @@ defmodule Krait.Skills.Core.WebFetchTest do
       ])
 
       assert {:error, msg} =
-               Krait.Skills.Core.WebFetch.execute(%{
+               WebFetch.execute(%{
                  "url" => "http://[2607:f8b0:4004:800::200e]/test"
                })
 

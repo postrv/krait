@@ -5,6 +5,7 @@ defmodule Krait.Skills.Community.MathUtilsTest do
 
   describe "behaviour compliance" do
     test "implements CapableSkill callbacks" do
+      assert Code.ensure_loaded?(MathUtils)
       assert function_exported?(MathUtils, :name, 0)
       assert function_exported?(MathUtils, :description, 0)
       assert function_exported?(MathUtils, :required_capabilities, 0)

@@ -52,7 +52,7 @@ defmodule Krait.Evolution.Spec do
     if explicit do
       explicit
     else
-      case Path.extname(target_path || "") do
+      case Path.extname(target_path) do
         ext when ext in [".ex", ".exs"] -> "elixir"
         ".py" -> "python"
         ext when ext in [".js", ".jsx"] -> "javascript"

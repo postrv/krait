@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
 
 env:
   MIX_ENV: test
@@ -47,13 +48,12 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Elixir deps + _build
+      - name: Cache Elixir deps
         uses: actions/cache@v4
         id: elixir-cache
         with:
           path: |
             deps
-            _build
           key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
             ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
@@ -74,6 +74,19 @@ jobs:
 
       - name: Compile (warnings as errors)
         run: mix compile --warnings-as-errors
+
+      - name: Validate Rust NIF load
+        run: |
+          mix run --no-start -e '
+          case Krait.Analyzer.Nif.quick_validate("defmodule M do end", "elixir") do
+            {:ok, %{complexity: complexity, hash: hash}}
+            when is_integer(complexity) and is_binary(hash) ->
+              :ok
+
+            other ->
+              raise "Rust NIF smoke check failed: #{inspect(other)}"
+          end
+          '
 
       - name: Check formatting
         run: mix format --check-formatted
@@ -169,12 +182,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Elixir deps + _build
+      - name: Cache Elixir deps
         uses: actions/cache@v4
         with:
           path: |
             deps
-            _build
           key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
             ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
@@ -241,11 +253,29 @@ jobs:
         run: cargo audit
 
   # ---------------------------------------------------------------------------
-  # Job 5: Immutable path guard (agent PRs only)
+  # Job 5: Immutable path guard
   # ---------------------------------------------------------------------------
+  # Default: any PR (agent or human) that touches a `.krait-immutable` path is
+  # rejected. A "Constitutional Convention" bypass requires TWO factors:
+  #   1. PR author is in `AUTHORIZED_HUMANS` (hardcoded human maintainer
+  #      allowlist below). Bots and external contributors cannot satisfy this.
+  #   2. `constitutional-convention` label is applied to the PR. Only users
+  #      with write access can apply labels; this gives the human a deliberate
+  #      second action and an audit-visible signal.
+  #
+  # The job always runs to completion (no job-level `if:` skip) and prints a
+  # full audit log of which immutable paths were modified, who the PR author
+  # is, and whether each factor was satisfied — so every bypass leaves a
+  # permanent record in Actions logs.
+  #
+  # GitHub control-plane files (`.github/`) are listed in `.krait-immutable`,
+  # so modifying this guard, CODEOWNERS, Dependabot config, or the human
+  # allowlist is itself a Constitutional Convention change.
   immutable-check:
     name: Immutable Path Guard
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # v23 M-8: Run for all PRs, not just krait-bot
     if: github.event_name == 'pull_request'
 
@@ -256,19 +286,97 @@ jobs:
           fetch-depth: 0
 
       - name: Check immutable paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CONSTITUTIONAL_LABEL_PRESENT: ${{ contains(github.event.pull_request.labels.*.name, 'constitutional-convention') }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_ASSOC: ${{ github.event.pull_request.author_association }}
         run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD)
-          while IFS= read -r path; do
-            # Skip comments and empty lines
-            [[ "$path" =~ ^#.*$ ]] && continue
-            [[ -z "$path" ]] && continue
-            # v23 M-8: Use -qF for fixed-string match (path was treated as regex)
-            if echo "$CHANGED" | grep -qF "$path"; then
-              echo "ERROR: Agent modified immutable path: $path"
-              exit 1
+          set -euo pipefail
+
+          # Authorized Constitutional Convention authors. Adding to this list
+          # is itself a Constitutional Convention change (this file is in
+          # .krait-immutable). Keep small; expand only by deliberate PR.
+          AUTHORIZED_HUMANS="postrv"
+          BASE_MANIFEST="$(mktemp)"
+
+          if ! git cat-file -e "${BASE_SHA}^{commit}"; then
+            echo "::error::Base commit ${BASE_SHA} is not available in the checkout."
+            exit 1
+          fi
+
+          if ! git show "${BASE_SHA}:.krait-immutable" > "${BASE_MANIFEST}"; then
+            echo "::error::Unable to read .krait-immutable from base commit ${BASE_SHA}."
+            exit 1
+          fi
+
+          matches_immutable_path() {
+            local changed_path="$1"
+            local immutable_path="$2"
+
+            if [[ "$immutable_path" == */ ]]; then
+              [[ "$changed_path" == "$immutable_path"* ]]
+            else
+              [[ "$changed_path" == "$immutable_path" ]]
             fi
-          done < .krait-immutable
-          echo "Immutable paths check passed"
+          }
+
+          # Compute which immutable paths this PR modifies. The manifest must
+          # come from the base branch, not from the PR checkout; otherwise a PR
+          # could delete its own guard entries before this job reads them.
+          CHANGED=$(git diff --name-only "${BASE_SHA}...HEAD")
+          VIOLATIONS=""
+          while IFS= read -r changed_path; do
+            [[ -z "$changed_path" ]] && continue
+
+            while IFS= read -r immutable_path; do
+              [[ "$immutable_path" =~ ^#.*$ ]] && continue
+              [[ -z "$immutable_path" ]] && continue
+
+              if matches_immutable_path "$changed_path" "$immutable_path"; then
+                VIOLATIONS="${VIOLATIONS}${changed_path} (matches: ${immutable_path})"$'\n'
+              fi
+            done < "${BASE_MANIFEST}"
+          done <<< "$CHANGED"
+
+          HAS_LABEL=false
+          if [ "$CONSTITUTIONAL_LABEL_PRESENT" = "true" ]; then
+            HAS_LABEL=true
+          fi
+
+          IS_AUTHORIZED_HUMAN=false
+          for name in $AUTHORIZED_HUMANS; do
+            if [ "$PR_AUTHOR" = "$name" ]; then
+              IS_AUTHORIZED_HUMAN=true
+              break
+            fi
+          done
+
+          echo "=== Immutable Path Guard — Audit ==="
+          echo "Base manifest commit: ${BASE_SHA}"
+          echo "PR author: ${PR_AUTHOR} (${PR_AUTHOR_ASSOC})"
+          echo "Author in human allowlist: ${IS_AUTHORIZED_HUMAN}"
+          echo "Label 'constitutional-convention' present: ${HAS_LABEL}"
+          if [ -z "$VIOLATIONS" ]; then
+            echo "Immutable paths modified: none"
+            echo "===================================="
+            echo "No immutable paths modified."
+            exit 0
+          fi
+          echo "Immutable paths modified:"
+          printf '%s' "$VIOLATIONS" | sed 's/^/  /'
+          echo "===================================="
+
+          if [ "$HAS_LABEL" = true ] && [ "$IS_AUTHORIZED_HUMAN" = true ]; then
+            echo "::notice::Constitutional Convention authorized by ${PR_AUTHOR}"
+            exit 0
+          fi
+
+          echo "::error::Immutable path modifications require Constitutional Convention bypass."
+          echo "Bypass requires BOTH:"
+          echo "  - PR authored by a human in AUTHORIZED_HUMANS (see .github/workflows/ci.yml)"
+          echo "  - 'constitutional-convention' label applied to the PR"
+          exit 1
 
   # ---------------------------------------------------------------------------
   # Job 6: Dialyzer type checking
@@ -304,12 +412,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Elixir deps + _build
+      - name: Cache Elixir deps
         uses: actions/cache@v4
         with:
           path: |
             deps
-            _build
           key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
             ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-

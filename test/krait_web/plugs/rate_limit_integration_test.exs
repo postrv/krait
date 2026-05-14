@@ -3,8 +3,6 @@ defmodule KraitWeb.Plugs.RateLimitIntegrationTest do
   use KraitWeb.ConnCase, async: false
 
   setup do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Krait.Repo, shared: true)
-
     # v21 H-3: Ensure RateLimitCounter GenServer is running and clean
     ensure_rate_limit_counter!()
     GenServer.call(KraitWeb.RateLimitCounter, {:sweep_all})
@@ -12,6 +10,10 @@ defmodule KraitWeb.Plugs.RateLimitIntegrationTest do
     # v22 SEC-08: Clear evolution cooldown via GenServer API (table is :protected)
     ensure_evolve_cooldown_server!()
     Krait.EvolveCooldownServer.delete_all()
+
+    # Keep this test scoped to rate limiting, not kill-switch state leaked by
+    # earlier evolution tests.
+    GenServer.call(Krait.KillSwitch, :reset_for_test)
 
     # Set high concurrency limit to avoid evolution throttling during rate limit test
     prev_max = Application.get_env(:krait, :max_concurrent_evolutions)
@@ -28,7 +30,7 @@ defmodule KraitWeb.Plugs.RateLimitIntegrationTest do
     Application.put_env(:krait, :api_auth_token, "integration-test-token")
 
     on_exit(fn ->
-      Ecto.Adapters.SQL.Sandbox.stop_owner(pid)
+      GenServer.call(Krait.KillSwitch, :reset_for_test)
 
       if prev_token,
         do: Application.put_env(:krait, :api_auth_token, prev_token),

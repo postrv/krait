@@ -5,6 +5,7 @@ defmodule Krait.Analyzer.ImmutableManifestTest do
 
   @required_paths [
     "native/",
+    ".github/",
     "lib/krait/analyzer/",
     "lib/krait/evolution/validator.ex",
     "lib/krait/evolution/deployer.ex",

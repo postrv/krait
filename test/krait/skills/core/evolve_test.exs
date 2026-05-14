@@ -1,23 +1,25 @@
 defmodule Krait.Skills.Core.EvolveTest do
   use ExUnit.Case, async: false
 
+  alias Krait.Skills.Core.Evolve
+
   import Mox
 
   describe "name/0" do
     test "returns evolve" do
-      assert Krait.Skills.Core.Evolve.name() == "evolve"
+      assert Evolve.name() == "evolve"
     end
   end
 
   describe "description/0" do
     test "returns description" do
-      assert Krait.Skills.Core.Evolve.description() =~ "self-evolution"
+      assert Evolve.description() =~ "self-evolution"
     end
   end
 
   describe "trigger_phrases/0" do
     test "includes evolve and learn" do
-      phrases = Krait.Skills.Core.Evolve.trigger_phrases()
+      phrases = Evolve.trigger_phrases()
       assert "evolve" in phrases
       assert "learn" in phrases
     end
@@ -71,7 +73,7 @@ defmodule Krait.Skills.Core.EvolveTest do
       end)
 
       assert {:ok, result} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "bitcoin",
                  "description" => "Check Bitcoin prices"
                })
@@ -81,7 +83,7 @@ defmodule Krait.Skills.Core.EvolveTest do
 
     test "rejects malicious skill names (path traversal)" do
       assert {:error, msg} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "../../../etc/passwd",
                  "description" => "malicious"
                })
@@ -91,7 +93,7 @@ defmodule Krait.Skills.Core.EvolveTest do
 
     test "rejects skill names with special characters" do
       assert {:error, msg} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "my-skill!",
                  "description" => "test"
                })
@@ -100,7 +102,7 @@ defmodule Krait.Skills.Core.EvolveTest do
     end
 
     test "returns error with missing params" do
-      assert {:error, _} = Krait.Skills.Core.Evolve.execute(%{"skill_name" => "test"})
+      assert {:error, _} = Evolve.execute(%{"skill_name" => "test"})
     end
 
     test "returns error when evolution fails" do
@@ -119,7 +121,7 @@ defmodule Krait.Skills.Core.EvolveTest do
       end)
 
       assert {:ok, result} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "failing",
                  "description" => "A skill that fails"
                })
@@ -131,7 +133,7 @@ defmodule Krait.Skills.Core.EvolveTest do
       Krait.KillSwitch.halt!("test halt")
 
       assert {:error, msg} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "halted_skill",
                  "description" => "Should be blocked by kill switch"
                })
@@ -152,7 +154,7 @@ defmodule Krait.Skills.Core.EvolveTest do
 
       # Now the Evolve skill should be blocked
       assert {:error, msg} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "blocked_skill",
                  "description" => "Should be blocked by capacity"
                })
@@ -190,7 +192,7 @@ defmodule Krait.Skills.Core.EvolveTest do
       end)
 
       assert {:ok, _result} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "slot_test",
                  "description" => "Test slot release"
                })
@@ -218,7 +220,7 @@ defmodule Krait.Skills.Core.EvolveTest do
       end)
 
       assert {:ok, _result} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "failing_slot",
                  "description" => "Test slot release on failure"
                })
@@ -275,7 +277,7 @@ defmodule Krait.Skills.Core.EvolveTest do
 
       # This should succeed (acquires 1 slot, total becomes max)
       assert {:ok, _result} =
-               Krait.Skills.Core.Evolve.execute(%{
+               Evolve.execute(%{
                  "skill_name" => "single_slot",
                  "description" => "Only acquires one slot"
                })

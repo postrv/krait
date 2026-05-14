@@ -1,6 +1,8 @@
 defmodule Krait.Gateway.Channels.TelegramTest do
   use ExUnit.Case, async: false
 
+  alias Krait.Gateway.Channels.Telegram
+
   setup do
     bypass = Bypass.open()
     {:ok, bypass: bypass, base_url: "http://localhost:#{bypass.port}"}
@@ -19,12 +21,12 @@ defmodule Krait.Gateway.Channels.TelegramTest do
     end)
 
     {:ok, pid} =
-      Krait.Gateway.Channels.Telegram.start_link(
+      Telegram.start_link(
         token: "TEST_TOKEN",
         base_url: url
       )
 
-    assert :ok = Krait.Gateway.Channels.Telegram.send_message(pid, "123", "Hello from Krait!")
+    assert :ok = Telegram.send_message(pid, "123", "Hello from Krait!")
   end
 
   test "returns error when API fails", %{bypass: bypass, base_url: url} do
@@ -35,18 +37,18 @@ defmodule Krait.Gateway.Channels.TelegramTest do
     end)
 
     {:ok, pid} =
-      Krait.Gateway.Channels.Telegram.start_link(
+      Telegram.start_link(
         token: "TEST_TOKEN",
         base_url: url
       )
 
-    assert {:error, _} = Krait.Gateway.Channels.Telegram.send_message(pid, "123", "Hello")
+    assert {:error, _} = Telegram.send_message(pid, "123", "Hello")
   end
 
   describe "v22 SEC-11: crash log redaction" do
     test "format_status redacts token from :sys.get_status output", %{base_url: url} do
       {:ok, pid} =
-        Krait.Gateway.Channels.Telegram.start_link(
+        Telegram.start_link(
           token: "SECRET_BOT_TOKEN_12345",
           base_url: url
         )
@@ -67,12 +69,12 @@ defmodule Krait.Gateway.Channels.TelegramTest do
       end)
 
       {:ok, pid} =
-        Krait.Gateway.Channels.Telegram.start_link(
+        Telegram.start_link(
           token: "REDACT_TEST",
           base_url: url
         )
 
-      assert :ok = Krait.Gateway.Channels.Telegram.send_message(pid, "123", "test")
+      assert :ok = Telegram.send_message(pid, "123", "test")
     end
   end
 
@@ -106,18 +108,18 @@ defmodule Krait.Gateway.Channels.TelegramTest do
       end
 
       {:ok, pid} =
-        Krait.Gateway.Channels.Telegram.start_link(
+        Telegram.start_link(
           token: "TEST_TOKEN",
           base_url: url,
           handler: handler,
           poll_interval: 50
         )
 
-      Krait.Gateway.Channels.Telegram.start_polling(pid)
+      Telegram.start_polling(pid)
 
       assert_receive {:received, :telegram, "42", "Hello bot"}, 2_000
 
-      Krait.Gateway.Channels.Telegram.stop_polling(pid)
+      Telegram.stop_polling(pid)
     end
 
     test "handles empty updates gracefully", %{bypass: bypass, base_url: url} do
@@ -128,15 +130,15 @@ defmodule Krait.Gateway.Channels.TelegramTest do
       end)
 
       {:ok, pid} =
-        Krait.Gateway.Channels.Telegram.start_link(
+        Telegram.start_link(
           token: "TEST_TOKEN",
           base_url: url,
           poll_interval: 50
         )
 
-      Krait.Gateway.Channels.Telegram.start_polling(pid)
+      Telegram.start_polling(pid)
       Process.sleep(200)
-      Krait.Gateway.Channels.Telegram.stop_polling(pid)
+      Telegram.stop_polling(pid)
 
       # If we get here without crashing, the test passes
       assert Process.alive?(pid)

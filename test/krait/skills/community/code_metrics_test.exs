@@ -5,6 +5,7 @@ defmodule Krait.Skills.Community.CodeMetricsTest do
 
   describe "behaviour compliance" do
     test "implements CapableSkill callbacks" do
+      assert Code.ensure_loaded?(CodeMetrics)
       assert function_exported?(CodeMetrics, :name, 0)
       assert function_exported?(CodeMetrics, :description, 0)
       assert function_exported?(CodeMetrics, :required_capabilities, 0)

@@ -135,6 +135,10 @@ KRAIT_REPO_NAME=your-org/krait
 # Narsil (deep security analysis — optional, graceful degradation)
 NARSIL_BINARY=/path/to/narsil-mcp
 
+# Production Narsil image pin
+NARSIL_VERSION=1.7.0
+NARSIL_SHA256=<sha256 for narsil-mcp-x86_64-unknown-linux-gnu v1.7.0>
+
 # Ollama (local LLM — optional, falls back to OpenRouter cloud)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5-coder:14b
@@ -255,20 +259,26 @@ Every evolution PR includes an Ed25519-signed attestation capturing:
 
 ### Immutable Core
 
-Files listed in `.krait-immutable` (27 path prefixes) cannot be targeted by agent-generated code. Updates require a **"Constitutional Convention"** — human-only, manual push:
+Files listed in `.krait-immutable` (31 path prefixes) cannot be targeted by agent-generated code. Updates require a **"Constitutional Convention"** — a PR authored by a human maintainer in the `AUTHORIZED_HUMANS` allowlist (see `.github/workflows/ci.yml`) AND carrying the `constitutional-convention` label. The CI Immutable Path Guard enforces both factors and writes an audit log for every bypass:
 
 ```
 native/                              # Rust NIF source
 rules/                               # Narsil rule definitions
 .krait-immutable                     # This manifest
 AGENTS.md                            # Contributor security guidance
+.github/                             # GitHub workflows, CODEOWNERS, Dependabot
 lib/krait/analyzer/                  # Allowlist + analyzers
 lib/krait/analyzer/allowlist.ex      # 5-tier module/function allowlist
 lib/krait/evolution/validator.ex     # Validation pipeline
 lib/krait/evolution/deployer.ex      # Deployment pipeline
+lib/krait/evolution/promotion_decision.ex
+lib/krait/evolution/review_evidence.ex
 lib/krait/evolution/evolution.ex     # Evolution orchestrator
 lib/krait/evolution/naming.ex        # Skill name validation
 lib/krait/sandbox/                   # Docker sandboxing
+lib/krait/setup_validation.ex        # Operator release validation
+lib/mix/tasks/                       # Release/security mix tasks
+docs/adr/                            # Architecture decision records
 lib/krait/brain/                     # ReAct cognitive loop
 lib/krait/gateway/                   # Channel routing
 lib/krait/llm/                       # LLM abstraction
@@ -287,15 +297,21 @@ mix.lock                             # Dependency lockfile
 
 ## Production Readiness
 
-**Current status (February 21, 2026): ~80% operational readiness**
+**Current status (May 14, 2026): conservative v0.1 release candidate**
+
+KRAIT's shippable release model is human-gated PR evolution: the agent proposes
+reviewable changes, humans merge them, and new capabilities take effect on the
+next deploy. Promotion-gated auto-merge and BEAM hot activation are tracked as
+forward-looking work in ADR-008; they are not part of the current release
+contract.
 
 | Area | Status | Detail |
 |------|--------|--------|
-| **Code Quality** | 9.5/10 | 1,883 Elixir tests + 199 Rust NIF tests, Credo clean, Dialyzer clean, Clippy clean |
+| **Code Quality** | 9.5/10 | 1,916 Elixir tests + 199 Rust NIF tests, Credo strict clean, Clippy clean |
 | **Security** | 9/10 | 27 hardening rounds, dual-engine allowlist, Ed25519 attestation, 10+ evasion detection patterns |
 | **Polyglot** | Complete | 6-language NIF (Elixir, Python, JS/TS, Go, Rust), per-language tree-sitter parsers, language-aware evolution pipeline |
 | **Seed Content** | Complete | 5 community skills (text_transform, math_utils, json_tools, date_helper, code_metrics) — 91 tests |
-| **Documentation** | 9/10 | README, AGENTS.md, CONTRIBUTING.md, SECURITY.md, 7 ADRs, secret management guide, first evolution tutorial, issue/PR templates |
+| **Documentation** | 9/10 | README, AGENTS.md, CONTRIBUTING.md, SECURITY.md, 8 ADRs, release-readiness review, secret management guide, first evolution tutorial, issue/PR templates |
 | **Deployment** | 92% | Production + quickstart Docker Compose, CD pipeline (GHCR), secret provisioning, release module |
 | **Observability** | 25% | Evolution telemetry only. Missing: validation/kill-switch/LLM telemetry, Prometheus, alerting docs |
 | **CI/CD** | 60% | 7 CI jobs + CD pipeline. Missing: prod smoke test, pre-release script |
@@ -303,7 +319,7 @@ mix.lock                             # Dependency lockfile
 ## Testing
 
 ```bash
-# Unit tests (1883 tests, 39 excluded for integration/docker/narsil/pgvector)
+# Unit tests (1916 tests, 39 excluded for integration/docker/narsil/pgvector)
 mix test
 
 # Include integration tests (requires running services)
@@ -551,7 +567,7 @@ scripts/
 
 SECURITY.md              # Vulnerability reporting, response timelines, 7 KRAIT rules, known limitations
 
-test/                    # 112 test files, 1883 tests
+test/                    # 117 test files, 1916 tests
   integration/           # End-to-end tests (evolution lifecycle, prompt injection, self-modification)
   krait/                 # Unit tests mirroring lib/ structure
   krait_web/             # Controller, LiveView, plug, admin auth tests
@@ -663,6 +679,9 @@ Key design decisions are documented in [docs/adr/](docs/adr/):
 | [005](docs/adr/005-global-allowlist.md) | Single global allowlist (no per-skill allowlists) |
 | [006](docs/adr/006-ed25519-attestation.md) | Ed25519 signing for evolution attestations |
 | [007](docs/adr/007-kill-switch-persistence.md) | Kill switch state persists to PostgreSQL |
+| [008](docs/adr/008-promotion-gated-capability-evolution.md) | Proposed promotion-gated capability evolution |
+
+For the current release gate checklist, see [docs/release-readiness.md](docs/release-readiness.md).
 
 ## License
 

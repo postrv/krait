@@ -5,6 +5,7 @@ defmodule Krait.Skills.Community.TextTransformTest do
 
   describe "behaviour compliance" do
     test "implements CapableSkill callbacks" do
+      assert Code.ensure_loaded?(TextTransform)
       assert function_exported?(TextTransform, :name, 0)
       assert function_exported?(TextTransform, :description, 0)
       assert function_exported?(TextTransform, :required_capabilities, 0)
