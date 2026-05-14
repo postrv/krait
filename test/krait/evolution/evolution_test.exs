@@ -7,8 +7,19 @@ defmodule Krait.Evolution.EvolutionTest do
   setup :verify_on_exit!
 
   setup do
+    previous_max_retries = Application.fetch_env(:krait, :max_evolution_retries)
+    Application.put_env(:krait, :max_evolution_retries, 3)
+
     # Ensure kill switch is not halted from a previous test module
     GenServer.call(Krait.KillSwitch, :reset_for_test)
+
+    on_exit(fn ->
+      case previous_max_retries do
+        {:ok, value} -> Application.put_env(:krait, :max_evolution_retries, value)
+        :error -> Application.delete_env(:krait, :max_evolution_retries)
+      end
+    end)
+
     :ok
   end
 
