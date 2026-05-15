@@ -49,28 +49,29 @@ defmodule Krait.LLM.OpenRouter do
   Returns `{:ok, %{balance: float, limit: float | nil}}` or `{:error, reason}`.
   """
   def check_credits(opts \\ []) do
-    api_key = Keyword.fetch!(opts, :api_key)
-    base_url = config(:base_url, opts, @default_base_url)
+    with {:ok, api_key} <- fetch_api_key(opts) do
+      base_url = config(:base_url, opts, @default_base_url)
 
-    case Req.get("#{base_url}/key",
-           headers: auth_headers(api_key, opts),
-           receive_timeout: 10_000,
-           redirect: false
-         ) do
-      {:ok, %{status: 200, body: %{"data" => data}}} ->
-        {:ok,
-         %{
-           balance: data["balance"] || 0.0,
-           limit: data["limit"],
-           usage: data["usage"] || 0.0,
-           limit_remaining: data["limit_remaining"]
-         }}
+      case Req.get("#{base_url}/key",
+             headers: auth_headers(api_key, opts),
+             receive_timeout: 10_000,
+             redirect: false
+           ) do
+        {:ok, %{status: 200, body: %{"data" => data}}} ->
+          {:ok,
+           %{
+             balance: data["balance"] || 0.0,
+             limit: data["limit"],
+             usage: data["usage"] || 0.0,
+             limit_remaining: data["limit_remaining"]
+           }}
 
-      {:ok, %{status: status, body: body}} ->
-        {:error, {status, body}}
+        {:ok, %{status: status, body: body}} ->
+          {:error, {status, body}}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -79,48 +80,49 @@ defmodule Krait.LLM.OpenRouter do
   # ---------------------------------------------------------------------------
 
   defp do_chat(messages, tools, opts) do
-    api_key = Keyword.fetch!(opts, :api_key)
-    base_url = config(:base_url, opts, @default_base_url)
-    model = config(:model, opts, @default_model)
-    timeout = config(:request_timeout, opts, @default_timeout)
-    max_tokens = Keyword.get(opts, :max_tokens, @default_max_tokens)
+    with {:ok, api_key} <- fetch_api_key(opts) do
+      base_url = config(:base_url, opts, @default_base_url)
+      model = config(:model, opts, @default_model)
+      timeout = config(:request_timeout, opts, @default_timeout)
+      max_tokens = Keyword.get(opts, :max_tokens, @default_max_tokens)
 
-    body =
-      %{
-        model: model,
-        max_tokens: max_tokens,
-        messages: normalize_messages(messages)
-      }
-      |> maybe_add_tools(tools)
-      |> maybe_add_models(opts)
-      |> maybe_add_provider(opts)
+      body =
+        %{
+          model: model,
+          max_tokens: max_tokens,
+          messages: normalize_messages(messages)
+        }
+        |> maybe_add_tools(tools)
+        |> maybe_add_models(opts)
+        |> maybe_add_provider(opts)
 
-    Logger.debug("OpenRouter request", model: model, message_count: length(messages))
+      Logger.debug("OpenRouter request", model: model, message_count: length(messages))
 
-    case Req.post("#{base_url}/chat/completions",
-           json: body,
-           headers: auth_headers(api_key, opts),
-           receive_timeout: timeout,
-           redirect: false
-         ) do
-      {:ok, %{status: 200, body: response_body}} ->
-        parse_response(response_body)
+      case Req.post("#{base_url}/chat/completions",
+             json: body,
+             headers: auth_headers(api_key, opts),
+             receive_timeout: timeout,
+             redirect: false
+           ) do
+        {:ok, %{status: 200, body: response_body}} ->
+          parse_response(response_body)
 
-      {:ok, %{status: 402, body: body}} ->
-        Logger.error("OpenRouter insufficient credits")
-        {:error, {:insufficient_credits, body}}
+        {:ok, %{status: 402, body: body}} ->
+          Logger.error("OpenRouter insufficient credits")
+          {:error, {:insufficient_credits, body}}
 
-      {:ok, %{status: status, body: body}} ->
-        Logger.error("OpenRouter error", status: status)
-        {:error, {:openrouter_error, status, body}}
+        {:ok, %{status: status, body: body}} ->
+          Logger.error("OpenRouter error", status: status)
+          {:error, {:openrouter_error, status, body}}
 
-      {:error, %Req.TransportError{reason: :econnrefused}} ->
-        Logger.error("OpenRouter not reachable", url: base_url)
-        {:error, :openrouter_unavailable}
+        {:error, %Req.TransportError{reason: :econnrefused}} ->
+          Logger.error("OpenRouter not reachable", url: base_url)
+          {:error, :openrouter_unavailable}
 
-      {:error, reason} ->
-        Logger.error("OpenRouter request failed", reason: request_failure_reason(reason))
-        {:error, {:request_failed, reason}}
+        {:error, reason} ->
+          Logger.error("OpenRouter request failed", reason: request_failure_reason(reason))
+          {:error, {:request_failed, reason}}
+      end
     end
   end
 
@@ -133,6 +135,20 @@ defmodule Krait.LLM.OpenRouter do
   # ---------------------------------------------------------------------------
   # Headers
   # ---------------------------------------------------------------------------
+
+  defp fetch_api_key(opts) do
+    case Keyword.get(opts, :api_key) do
+      key when is_binary(key) ->
+        if String.trim(key) == "" do
+          {:error, :missing_api_key}
+        else
+          {:ok, key}
+        end
+
+      _other ->
+        {:error, :missing_api_key}
+    end
+  end
 
   defp auth_headers(api_key, opts) do
     site_url = config(:site_url, opts, "")

@@ -86,10 +86,16 @@ defmodule Krait.LLM.OpenRouterTest do
                OpenRouter.complete([%{"role" => "user", "content" => "Hi"}], opts)
     end
 
-    test "raises KeyError when api_key is missing" do
-      assert_raise KeyError, ~r/api_key/, fn ->
-        OpenRouter.complete([%{"role" => "user", "content" => "Hi"}], [])
-      end
+    test "returns a controlled error when api_key is missing" do
+      assert {:error, :missing_api_key} =
+               OpenRouter.complete([%{"role" => "user", "content" => "Hi"}], [])
+    end
+
+    test "returns a controlled error when api_key is blank" do
+      assert {:error, :missing_api_key} =
+               OpenRouter.complete([%{"role" => "user", "content" => "Hi"}],
+                 api_key: "  "
+               )
     end
   end
 
@@ -349,6 +355,10 @@ defmodule Krait.LLM.OpenRouterTest do
       end)
 
       assert {:error, {401, _}} = OpenRouter.check_credits(opts)
+    end
+
+    test "returns a controlled error when api_key is missing" do
+      assert {:error, :missing_api_key} = OpenRouter.check_credits([])
     end
   end
 
