@@ -122,6 +122,50 @@ defmodule Krait.SetupValidationTest do
       assert message =~ "Cloud LLM API key"
     end
 
+    test "reports missing cloud API key when router forces cloud tasks" do
+      Application.put_env(:krait, :env, :prod)
+      Application.delete_env(:krait, :openrouter_api_key)
+      Application.delete_env(:krait, :anthropic_api_key)
+      Application.put_env(:krait, Krait.LLM.Ollama, base_url: "http://localhost:11434")
+
+      Application.put_env(:krait, Krait.LLM.Router,
+        local_module: Krait.LLM.Ollama,
+        cloud_module: Krait.LLM.OpenRouter,
+        force_cloud: [:code_gen],
+        force_local: [],
+        escalation_threshold: 1
+      )
+
+      result = SetupValidation.run(checks: [:llm])
+
+      assert result.status == :error
+
+      assert [
+               %{
+                 name: :llm,
+                 status: :error,
+                 message: message,
+                 details: %{force_cloud: [:code_gen]}
+               }
+             ] = result.checks
+
+      assert message =~ "Cloud LLM API key"
+    end
+
+    test "accepts Ollama when router does not force cloud tasks" do
+      Application.put_env(:krait, :env, :test)
+      Application.delete_env(:krait, :openrouter_api_key)
+      Application.delete_env(:krait, :anthropic_api_key)
+      Application.put_env(:krait, Krait.LLM.Ollama, base_url: "http://localhost:11434")
+      Application.put_env(:krait, Krait.LLM.Router, force_cloud: [], force_local: [:code_gen])
+
+      result = SetupValidation.run(checks: [:llm])
+
+      assert result.status == :ok
+      assert [%{name: :llm, status: :ok, message: message}] = result.checks
+      assert message =~ "Ollama"
+    end
+
     test "reports kill switch probe errors as setup errors" do
       result =
         SetupValidation.run(

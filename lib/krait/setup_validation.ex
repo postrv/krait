@@ -238,6 +238,7 @@ defmodule Krait.SetupValidation do
     anthropic_key = Application.get_env(:krait, :anthropic_api_key)
     ollama_config = Application.get_env(:krait, Krait.LLM.Ollama, [])
     ollama_url = Keyword.get(ollama_config, :base_url)
+    forced_cloud_tasks = router_force_cloud_tasks()
 
     cond do
       present?(openrouter_key) ->
@@ -245,6 +246,13 @@ defmodule Krait.SetupValidation do
 
       present?(anthropic_key) ->
         check(:llm, :ok, "Cloud LLM API key is configured", %{provider: :anthropic})
+
+      forced_cloud_tasks != [] ->
+        status = if prod?(), do: :error, else: :warning
+
+        check(:llm, status, "Cloud LLM API key is required by router policy", %{
+          force_cloud: forced_cloud_tasks
+        })
 
       present?(ollama_url) ->
         status = if prod?(), do: :warning, else: :ok
@@ -254,6 +262,13 @@ defmodule Krait.SetupValidation do
         status = if prod?(), do: :error, else: :warning
         check(:llm, status, "no LLM backend is configured")
     end
+  end
+
+  defp router_force_cloud_tasks do
+    :krait
+    |> Application.get_env(Krait.LLM.Router, [])
+    |> Keyword.get(:force_cloud, [:planning, :reflection, :retry_guide])
+    |> List.wrap()
   end
 
   defp filesystem_sandbox_check(opts) do

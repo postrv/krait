@@ -276,6 +276,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
     # v23 M-8: Run for all PRs, not just krait-bot
     if: github.event_name == 'pull_request'
 
@@ -289,8 +290,11 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CONSTITUTIONAL_LABEL_PRESENT: ${{ contains(github.event.pull_request.labels.*.name, 'constitutional-convention') }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_AUTHOR_ASSOC: ${{ github.event.pull_request.author_association }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
 
@@ -339,8 +343,12 @@ jobs:
             done < "${BASE_MANIFEST}"
           done <<< "$CHANGED"
 
+          # Read live labels, not only the original event snapshot. This keeps
+          # manual reruns honest if the bypass label is added or removed after
+          # the first PR event.
           HAS_LABEL=false
-          if [ "$CONSTITUTIONAL_LABEL_PRESENT" = "true" ]; then
+          LIVE_LABELS="$(gh api "/repos/${REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name' 2>/dev/null || true)"
+          if printf '%s\n' "$LIVE_LABELS" | grep -Fxq "constitutional-convention"; then
             HAS_LABEL=true
           fi
 
@@ -356,7 +364,8 @@ jobs:
           echo "Base manifest commit: ${BASE_SHA}"
           echo "PR author: ${PR_AUTHOR} (${PR_AUTHOR_ASSOC})"
           echo "Author in human allowlist: ${IS_AUTHORIZED_HUMAN}"
-          echo "Label 'constitutional-convention' present: ${HAS_LABEL}"
+          echo "Label 'constitutional-convention' present in event: ${CONSTITUTIONAL_LABEL_PRESENT}"
+          echo "Label 'constitutional-convention' present now: ${HAS_LABEL}"
           if [ -z "$VIOLATIONS" ]; then
             echo "Immutable paths modified: none"
             echo "===================================="
