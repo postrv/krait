@@ -52,6 +52,18 @@ defmodule Krait.KillSwitch do
   end
 
   @doc """
+  Halt evolution in the current node without persisting the halt.
+
+  This is intended for graceful shutdown drains: the node must stop accepting
+  new evolution work while it waits for active work to finish, but a normal
+  restart must not come back with the global kill switch still engaged.
+  """
+  @spec halt_transient!(String.t()) :: :ok
+  def halt_transient!(reason) do
+    GenServer.call(__MODULE__, {:halt_transient, reason})
+  end
+
+  @doc """
   Resume evolution. Returns `{:error, :resume_cooldown, seconds_remaining}`
   if called within 30 seconds of the last resume.
   """
@@ -116,25 +128,31 @@ defmodule Krait.KillSwitch do
 
   @impl true
   def handle_call({:halt, reason}, _from, state) do
-    now = DateTime.utc_now()
-
-    # Only update timestamp on first halt (idempotent)
-    halted_at =
-      case :ets.lookup(@table, :halted_at) do
-        [{:halted_at, existing}] when state.halted -> existing
-        _ -> now
-      end
-
-    :ets.insert(@table, {:halted, true})
-    :ets.insert(@table, {:halted_at, halted_at})
-    :ets.insert(@table, {:halted_by, reason})
-
-    new_state = %{state | halted: true, halted_at: halted_at, halted_by: reason}
+    new_state = put_halted_state(state, reason)
     new_state = maybe_update_db_id(new_state, persist_to_db(new_state))
 
     Phoenix.PubSub.broadcast(Krait.PubSub, @pubsub_topic, {:kill_switch_engaged, reason})
 
     Logger.warning("[KillSwitch] Evolution halted: " <> reason)
+
+    {:reply, :ok, new_state}
+  end
+
+  def handle_call({:halt_transient, reason}, _from, %{halted: true} = state) do
+    Logger.info(
+      "[KillSwitch] Transient halt requested during existing halt: " <>
+        (state.halted_by || reason)
+    )
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:halt_transient, reason}, _from, state) do
+    new_state = put_halted_state(state, reason)
+
+    Phoenix.PubSub.broadcast(Krait.PubSub, @pubsub_topic, {:kill_switch_engaged, reason})
+
+    Logger.warning("[KillSwitch] Evolution transiently halted: " <> reason)
 
     {:reply, :ok, new_state}
   end
@@ -224,6 +242,23 @@ defmodule Krait.KillSwitch do
   end
 
   # -- Private --
+
+  defp put_halted_state(state, reason) do
+    now = DateTime.utc_now()
+
+    # Only update timestamp on first halt (idempotent)
+    halted_at =
+      case :ets.lookup(state.table, :halted_at) do
+        [{:halted_at, existing}] when state.halted -> existing
+        _ -> now
+      end
+
+    :ets.insert(state.table, {:halted, true})
+    :ets.insert(state.table, {:halted_at, halted_at})
+    :ets.insert(state.table, {:halted_by, reason})
+
+    %{state | halted: true, halted_at: halted_at, halted_by: reason}
+  end
 
   defp do_resume(state) do
     :ets.insert(@table, {:halted, false})
