@@ -287,7 +287,7 @@ defmodule Krait.Application do
   @impl true
   def prep_stop(_state) do
     Logger.info("[SHUTDOWN] Draining in-flight evolutions...")
-    Krait.KillSwitch.halt!("graceful_shutdown")
+    Krait.KillSwitch.halt_transient!("graceful_shutdown")
     drain_evolutions(30_000)
     :ok
   rescue

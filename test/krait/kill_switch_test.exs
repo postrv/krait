@@ -56,6 +56,25 @@ defmodule Krait.KillSwitchTest do
     end
   end
 
+  describe "halt_transient!/1" do
+    test "halts current node without using resume cooldown" do
+      assert :ok = KillSwitch.halt_transient!("graceful_shutdown")
+
+      assert KillSwitch.halted?()
+      assert KillSwitch.status().halted_by == "graceful_shutdown"
+
+      assert :ok = KillSwitch.resume!()
+      refute KillSwitch.halted?()
+    end
+
+    test "does not overwrite an existing halt reason" do
+      assert :ok = KillSwitch.halt!("security concern")
+      assert :ok = KillSwitch.halt_transient!("graceful_shutdown")
+
+      assert KillSwitch.status().halted_by == "security concern"
+    end
+  end
+
   describe "resume!/0" do
     test "clears halted state" do
       KillSwitch.halt!("to be resumed")
